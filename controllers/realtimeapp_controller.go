@@ -31,6 +31,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -49,7 +50,8 @@ var log = logf.Log.WithName("controller_podset")
 func newDeploymentForRealTimeApp(rta *v1alpha1.RealTimeApp, number uint) *appv1.Deployment {
 
 	labels := map[string]string{
-		"app": rta.Name,
+		"app":    rta.Name,
+		"number": strconv.FormatUint(uint64(number), 10),
 	}
 
 	image := rta.Spec.Image
@@ -76,6 +78,35 @@ func newDeploymentForRealTimeApp(rta *v1alpha1.RealTimeApp, number uint) *appv1.
 							Image: image,
 						},
 					},
+				},
+			},
+		},
+	}
+}
+
+func newServiceForRealTimeApp(rta *v1alpha1.RealTimeApp, number uint) *corev1.Service {
+
+	labels := map[string]string{
+		"app":    rta.Name,
+		"number": strconv.FormatUint(uint64(number), 10),
+	}
+
+	generateName := fmt.Sprintf("%s-%s-%d-", rta.Name, "service", number)
+
+	return &corev1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			GenerateName: generateName,
+			Namespace:    rta.Namespace,
+			Labels:       labels,
+		},
+		Spec: corev1.ServiceSpec{
+			Type:     corev1.ServiceTypeClusterIP,
+			Selector: labels,
+			Ports: []corev1.ServicePort{
+				corev1.ServicePort{
+					Port:       80,
+					TargetPort: intstr.FromInt(80),
+					Protocol:   corev1.ProtocolTCP,
 				},
 			},
 		},
@@ -118,9 +149,18 @@ func (r *RealTimeAppReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		Namespace:     app.Namespace,
 		LabelSelector: labels.SelectorFromSet(lbls),
 	})
-
 	if err != nil {
 		log.Error(err, "failed to fecht list of existing deployments in the application")
+		return reconcile.Result{}, err
+	}
+
+	exisitingServices := &corev1.ServiceList{}
+	err = r.Client.List(context.TODO(), exisitingServices, &client.ListOptions{
+		Namespace:     app.Namespace,
+		LabelSelector: labels.SelectorFromSet(lbls),
+	})
+	if err != nil {
+		log.Error(err, "failed to fetch list of existing services")
 		return reconcile.Result{}, err
 	}
 
@@ -141,7 +181,9 @@ func (r *RealTimeAppReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		} else {
 			log.Info("Updating Image", "OldImage", deployment.Spec.Template.Spec.Containers[0].Image, "NewImage", app.Spec.Image)
 			newDeployment := newDeploymentForRealTimeApp(&app, deploymentNumberUintNew)
+			newService := newServiceForRealTimeApp(&app, deploymentNumberUintNew)
 			controllerutil.SetControllerReference(&app, newDeployment, r.Scheme)
+			controllerutil.SetControllerReference(&app, newService, r.Scheme)
 			app.Status.State = "Creating"
 			err := r.Status().Update(context.TODO(), &app)
 			if err != nil {
@@ -151,6 +193,11 @@ func (r *RealTimeAppReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 			err = r.Create(context.TODO(), newDeployment)
 			if err != nil {
 				log.Error(err, "Creating the Update-Deployment failed.")
+				return reconcile.Result{}, nil
+			}
+			err = r.Create(context.TODO(), newService)
+			if err != nil {
+				log.Error(err, "Creating the Update-Service failed.")
 				return reconcile.Result{}, nil
 			}
 			app.Status.State = "Updating"
@@ -180,6 +227,11 @@ func (r *RealTimeAppReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 			log.Error(err, "Failed to delete old deployment")
 			return ctrl.Result{}, err
 		}
+		err = r.Client.Delete(context.TODO(), &exisitingServices.Items[idx], client.GracePeriodSeconds(5))
+		if err != nil {
+			log.Error(err, "Failed to delete old service")
+			return ctrl.Result{}, err
+		}
 		app.Status.State = "Running"
 		app.Status.LastDeployment = existingDeployment.Items[idx].Name
 		app.Status.Deployment = existingDeployment.Items[idxNew].Name
@@ -191,10 +243,17 @@ func (r *RealTimeAppReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		return ctrl.Result{Requeue: true}, nil
 	} else {
 		deployment := newDeploymentForRealTimeApp(&app, 0)
+		service := newServiceForRealTimeApp(&app, 0)
 		controllerutil.SetControllerReference(&app, deployment, r.Scheme)
+		controllerutil.SetControllerReference(&app, service, r.Scheme)
 		err = r.Create(context.TODO(), deployment)
 		if err != nil {
 			log.Error(err, "Failed to create a deployment")
+			return reconcile.Result{}, err
+		}
+		err = r.Create(context.TODO(), service)
+		if err != nil {
+			log.Error(err, "Failed to create a service")
 			return reconcile.Result{}, err
 		}
 		return ctrl.Result{Requeue: true}, nil

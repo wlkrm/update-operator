@@ -18,6 +18,9 @@ package controllers
 
 import (
 	"context"
+	"fmt"
+	"strconv"
+	"strings"
 
 	"update-operator/api/v1alpha1"
 	corev1alpha1 "update-operator/api/v1alpha1"
@@ -43,17 +46,18 @@ type RealTimeAppReconciler struct {
 
 var log = logf.Log.WithName("controller_podset")
 
-func newDeploymentForRealTimeApp(rta *v1alpha1.RealTimeApp) *appv1.Deployment {
+func newDeploymentForRealTimeApp(rta *v1alpha1.RealTimeApp, number uint) *appv1.Deployment {
 
 	labels := map[string]string{
 		"app": rta.Name,
 	}
 
 	image := rta.Spec.Image
+	generateName := fmt.Sprintf("%s-%s-%d-", rta.Name, "deployment", number)
 
 	return &appv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
-			GenerateName: rta.Name + "-deployment",
+			GenerateName: generateName,
 			Namespace:    rta.Namespace,
 			Labels:       labels,
 		},
@@ -92,7 +96,7 @@ func newDeploymentForRealTimeApp(rta *v1alpha1.RealTimeApp) *appv1.Deployment {
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.12.1/pkg/reconcile
 func (r *RealTimeAppReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	reqLogger := log.WithValues("Request.Namespace", req.Namespace, "Request.Name", req.Name)
+	// reqLogger := log.WithValues("Request.Namespace", req.Namespace, "Request.Name", req.Name)
 	// TODO(user): your logic here
 	var app corev1alpha1.RealTimeApp
 	err := r.Get(ctx, req.NamespacedName, &app)
@@ -116,32 +120,92 @@ func (r *RealTimeAppReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	})
 
 	if err != nil {
-		log.Error(err, "failed to techt list of existing deployments in the application")
+		log.Error(err, "failed to fecht list of existing deployments in the application")
 		return reconcile.Result{}, err
 	}
 
-	if len(existingDeployment.Items) != 0 {
-		reqLogger.Info("Deployment already exists: ")
-		return reconcile.Result{}, nil
+	if len(existingDeployment.Items) == 1 {
+		deploymentNamePrefix := fmt.Sprintf("%s-deployment-", app.Name)
+		deployment := existingDeployment.Items[0]
+		deploymentNameSuffix := deployment.Name[len(deploymentNamePrefix):]
+		deploymentNumber, _ := strconv.ParseUint(strings.Split(deploymentNameSuffix, "-")[0], 10, 64)
+		deploymentNumberUint := uint(deploymentNumber)
+		deploymentNumberUintNew := uint(0)
+
+		if deploymentNumberUint == 0 {
+			deploymentNumberUintNew = 1
+		}
+
+		if deployment.Spec.Template.Spec.Containers[0].Image == app.Spec.Image {
+			return reconcile.Result{}, nil
+		} else {
+			log.Info("Updating Image", "OldImage", deployment.Spec.Template.Spec.Containers[0].Image, "NewImage", app.Spec.Image)
+			newDeployment := newDeploymentForRealTimeApp(&app, deploymentNumberUintNew)
+			controllerutil.SetControllerReference(&app, newDeployment, r.Scheme)
+			app.Status.State = "Creating"
+			err := r.Status().Update(context.TODO(), &app)
+			if err != nil {
+				log.Error(err, "Failed to update Realtimeapp Status")
+				return ctrl.Result{}, err
+			}
+			err = r.Create(context.TODO(), newDeployment)
+			if err != nil {
+				log.Error(err, "Creating the Update-Deployment failed.")
+				return reconcile.Result{}, nil
+			}
+			app.Status.State = "Updating"
+			err = r.Status().Update(context.TODO(), &app)
+			if err != nil {
+				log.Error(err, "Failed to update Realtimeapp Status")
+				return ctrl.Result{}, err
+			}
+			return ctrl.Result{Requeue: true}, nil
+		}
+	} else if len(existingDeployment.Items) == 2 {
+		idx := uint(0)
+		idxNew := uint(1)
+		if existingDeployment.Items[1].CreationTimestamp.Time.Before(existingDeployment.Items[0].CreationTimestamp.Time) {
+			idx = uint(1)
+			idxNew = uint(0)
+		}
+		log.Info("Deleting old Deployment", "Name", existingDeployment.Items[idx].Name)
+		app.Status.State = "Deleting"
+		err := r.Status().Update(context.TODO(), &app)
+		if err != nil {
+			log.Error(err, "Failed to update Realtimeapp Status")
+			return ctrl.Result{}, err
+		}
+		err = r.Client.Delete(context.TODO(), &existingDeployment.Items[idx], client.GracePeriodSeconds(5))
+		if err != nil {
+			log.Error(err, "Failed to delete old deployment")
+			return ctrl.Result{}, err
+		}
+		app.Status.State = "Running"
+		app.Status.LastDeployment = existingDeployment.Items[idx].Name
+		app.Status.Deployment = existingDeployment.Items[idxNew].Name
+		err = r.Status().Update(context.TODO(), &app)
+		if err != nil {
+			log.Error(err, "Failed to update Realtimeapp Status")
+			return ctrl.Result{}, err
+		}
+		return ctrl.Result{Requeue: true}, nil
+	} else {
+		deployment := newDeploymentForRealTimeApp(&app, 0)
+		controllerutil.SetControllerReference(&app, deployment, r.Scheme)
+		err = r.Create(context.TODO(), deployment)
+		if err != nil {
+			log.Error(err, "Failed to create a deployment")
+			return reconcile.Result{}, err
+		}
+		return ctrl.Result{Requeue: true}, nil
 	}
-
-	reqLogger.Info("Deployment does not exists")
-
-	deployment := newDeploymentForRealTimeApp(&app)
-	controllerutil.SetControllerReference(&app, deployment, r.Scheme)
-	err = r.Create(context.TODO(), deployment)
-	if err != nil {
-		log.Error(err, "Failed to create a deployment")
-		return reconcile.Result{}, err
-	}
-
-	return ctrl.Result{Requeue: true}, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *RealTimeAppReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 	log.Info("The RT-App-Controller was registered")
+
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&corev1alpha1.RealTimeApp{}).
 		Complete(r)

@@ -36,6 +36,9 @@ type RealTimeAppSpec struct {
 type RealTimeAppStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
+	Deployment     string `json:"deployment,omitempty"`
+	LastDeployment string `json:"last,omitempty"`
+	State          string `json:"state,omitempty"`
 }
 
 //+kubebuilder:object:root=true

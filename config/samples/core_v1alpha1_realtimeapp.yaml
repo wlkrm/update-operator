@@ -3,5 +3,5 @@ kind: RealTimeApp
 metadata:
   name: realtimeapp-sample
 spec:
-  Image: nginxdemos/hello
+  image: nginxdemos/hello
   # TODO(user): Add fields here

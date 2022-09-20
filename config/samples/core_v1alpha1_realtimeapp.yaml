@@ -1,0 +1,7 @@
+apiVersion: core.isw.de/v1alpha1
+kind: RealTimeApp
+metadata:
+  name: realtimeapp-sample
+spec:
+  Image: nginxdemos/hello
+  # TODO(user): Add fields here

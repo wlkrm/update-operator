@@ -1,0 +1,7 @@
+apiVersion: core.isw.de/v1alpha1
+kind: RealTimeApp
+metadata:
+  name: myrealtimeapp
+  namespace: isw
+spec:
+  foo: wow1

@@ -1,0 +1,1 @@
+kubectl delete realtimeapp realtimeapp-sample

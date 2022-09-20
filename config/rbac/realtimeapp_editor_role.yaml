@@ -1,0 +1,24 @@
+# permissions for end users to edit realtimeapps.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: realtimeapp-editor-role
+rules:
+- apiGroups:
+  - core.isw.de
+  resources:
+  - realtimeapps
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - core.isw.de
+  resources:
+  - realtimeapps/status
+  verbs:
+  - get

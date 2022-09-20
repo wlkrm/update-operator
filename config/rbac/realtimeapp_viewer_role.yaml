@@ -1,0 +1,20 @@
+# permissions for end users to view realtimeapps.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: realtimeapp-viewer-role
+rules:
+- apiGroups:
+  - core.isw.de
+  resources:
+  - realtimeapps
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - core.isw.de
+  resources:
+  - realtimeapps/status
+  verbs:
+  - get

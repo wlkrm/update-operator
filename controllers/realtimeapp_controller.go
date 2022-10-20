@@ -18,13 +18,16 @@ package controllers
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"update-operator/api/v1alpha1"
 	corev1alpha1 "update-operator/api/v1alpha1"
 
+	mqtt "github.com/eclipse/paho.mqtt.golang"
 	appv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -42,7 +45,9 @@ import (
 // RealTimeAppReconciler reconciles a RealTimeApp object
 type RealTimeAppReconciler struct {
 	client.Client
-	Scheme *runtime.Scheme
+	Scheme     *runtime.Scheme
+	mqttClient mqtt.Client
+	done       chan bool
 }
 
 var log = logf.Log.WithName("controller_podset")
@@ -54,7 +59,7 @@ func newDeploymentForRealTimeApp(rta *v1alpha1.RealTimeApp, number uint) *appv1.
 		"number": strconv.FormatUint(uint64(number), 10),
 	}
 
-	image := rta.Spec.Image
+	podspec := rta.Spec.PodSpec
 	generateName := fmt.Sprintf("%s-%s-%d-", rta.Name, "deployment", number)
 
 	return &appv1.Deployment{
@@ -71,14 +76,7 @@ func newDeploymentForRealTimeApp(rta *v1alpha1.RealTimeApp, number uint) *appv1.
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: labels,
 				},
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{
-						corev1.Container{
-							Name:  rta.Name + "-container",
-							Image: image,
-						},
-					},
-				},
+				Spec: podspec,
 			},
 		},
 	}
@@ -176,10 +174,10 @@ func (r *RealTimeAppReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 			deploymentNumberUintNew = 1
 		}
 
-		if deployment.Spec.Template.Spec.Containers[0].Image == app.Spec.Image {
+		if deployment.Spec.Template.Spec.Containers[0].Image == app.Spec.PodSpec.Containers[0].Image {
 			return reconcile.Result{}, nil
 		} else {
-			log.Info("Updating Image", "OldImage", deployment.Spec.Template.Spec.Containers[0].Image, "NewImage", app.Spec.Image)
+			log.Info("Updating Image", "OldImage", deployment.Spec.Template.Spec.Containers[0].Image, "NewImage", app.Spec.PodSpec.Containers[0].Image)
 			newDeployment := newDeploymentForRealTimeApp(&app, deploymentNumberUintNew)
 			newService := newServiceForRealTimeApp(&app, deploymentNumberUintNew)
 			controllerutil.SetControllerReference(&app, newDeployment, r.Scheme)
@@ -222,6 +220,11 @@ func (r *RealTimeAppReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 			log.Error(err, "Failed to update Realtimeapp Status")
 			return ctrl.Result{}, err
 		}
+
+		oldName := fmt.Sprintf("%s-%d", app.Name, idx)
+		newName := fmt.Sprintf("%s-%d", app.Name, idxNew)
+		runUpdate(r, oldName, newName)
+
 		err = r.Client.Delete(context.TODO(), &existingDeployment.Items[idx], client.GracePeriodSeconds(5))
 		if err != nil {
 			log.Error(err, "Failed to delete old deployment")
@@ -260,8 +263,167 @@ func (r *RealTimeAppReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	}
 }
 
+type RtAppState struct {
+	State string `json:"state"`
+}
+
+type RtAppAction struct {
+	Action    string `json:"action"`
+	G_code    string `json:"g_code"`
+	SyncBlock uint64 `json:"syncBlock"`
+}
+
+type RtAppUpdate struct {
+	State     string `json:"state"`
+	SyncBlock uint64 `json:"syncBlock"`
+}
+
+func runUpdate(r *RealTimeAppReconciler, oldAppName string, newAppName string) {
+	a := make(chan bool)
+	consumeUpdateReady := make(chan bool)
+	providUpdateReady := make(chan bool)
+	doneReady := make(chan bool)
+	oldNotRunning := make(chan bool)
+
+	// Wait for New App to Come Online
+	var resp RtAppUpdate
+	r.mqttClient.Subscribe("rtapps/"+oldAppName+"/update", 1, func(client mqtt.Client, msg mqtt.Message) {
+		err := json.Unmarshal(msg.Payload(), &resp)
+		if err != nil {
+			log.Info("Error 1")
+		}
+		log.Info("Old App provided Update")
+		select {
+		case providUpdateReady <- true:
+		default:
+		}
+	})
+
+	r.mqttClient.Subscribe("rtapps/"+newAppName+"/state", 1, func(client mqtt.Client, msg mqtt.Message) {
+		var state RtAppState
+		err := json.Unmarshal(msg.Payload(), &state)
+		if err == nil {
+			if state.State == "CONSUMEUPDATE" {
+				select {
+				case consumeUpdateReady <- true:
+				default:
+				}
+
+			}
+		}
+		select {
+		case a <- true:
+		default:
+		}
+
+	})
+
+	y := func() func() bool {
+		done := false
+
+		return func() bool {
+			ret := done
+			done = true
+			return ret
+		}
+	}
+
+	isDone := y()
+	r.mqttClient.Subscribe("rtapps/"+oldAppName+"/state", 1, func(client mqtt.Client, msg mqtt.Message) {
+
+		var state RtAppState
+		err := json.Unmarshal(msg.Payload(), &state)
+		if err == nil {
+			if state.State == "DONE" {
+				if !isDone() {
+					log.Info("Waiting on done")
+					doneReady <- true
+				}
+			} else if state.State != "OP" {
+				select {
+				case oldNotRunning <- true:
+				default:
+				}
+			} else {
+				select {
+				case oldNotRunning <- false:
+				default:
+				}
+			}
+		}
+	})
+
+	<-a
+	x := <-oldNotRunning
+	if x {
+		r.mqttClient.Unsubscribe("rtapps/"+oldAppName+"/update", "rtapps/"+newAppName+"/state", "rtapps/"+oldAppName+"/state")
+		return
+	}
+	// Request Update from Old App
+	log.Info("Requesting Update from Old App")
+	req := &RtAppAction{Action: "PROVIDEUPDATE", G_code: "", SyncBlock: 0}
+	reqJson, err := json.Marshal(req)
+	if err != nil {
+		log.Info(err.Error())
+	}
+	if token := r.mqttClient.Publish("rtapps/"+oldAppName+"/action", 1, false, string(reqJson)); token.Wait() && token.Error() != nil {
+		log.Info(token.Error().Error())
+	}
+
+	log.Info("Requested Update from Old App")
+	<-providUpdateReady
+	// Await Update from Old App
+
+	// Request Consumeupdate
+	log.Info("Requesting Consume Update to New App")
+	req2 := RtAppAction{Action: "CONSUMEUPDATE", G_code: resp.State, SyncBlock: resp.SyncBlock}
+	req2Json, err := json.Marshal(req2)
+	if err != nil {
+		log.Info(err.Error())
+	}
+	if token := r.mqttClient.Publish("rtapps/"+newAppName+"/action", 1, false, string(req2Json)); token.Wait() && token.Error() != nil {
+		log.Info(token.Error().Error())
+	}
+
+	<-doneReady
+
+	log.Info("Requesting Continue to New App")
+	req3 := RtAppAction{Action: "MCM_PROCESS_ACTIVE"}
+	req3Json, err := json.Marshal(req3)
+	if err != nil {
+		log.Info(err.Error())
+	}
+	if token := r.mqttClient.Publish("rtapps/"+newAppName+"/ncaction", 1, false, string(req3Json)); token.Wait() && token.Error() != nil {
+		log.Info(token.Error().Error())
+	}
+
+	r.mqttClient.Unsubscribe("rtapps/"+oldAppName+"/update", "rtapps/"+newAppName+"/state", "rtapps/"+oldAppName+"/state")
+}
+
+func listen(r *RealTimeAppReconciler, topic string) {
+	r.mqttClient.Subscribe(topic, 0, func(client mqtt.Client, msg mqtt.Message) {
+		fmt.Printf("* [%s] %s\n", msg.Topic(), string(msg.Payload()))
+		log.Info("The RT-App-Controller was registered")
+	})
+}
+
 // SetupWithManager sets up the controller with the Manager.
 func (r *RealTimeAppReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	var broker = "192.168.178.24"
+	var port = 1883
+	opts := mqtt.NewClientOptions()
+	opts.AddBroker(fmt.Sprintf("tcp://%s:%d", broker, port))
+
+	r.mqttClient = mqtt.NewClient(opts)
+	token := r.mqttClient.Connect()
+
+	for !token.WaitTimeout(3 * time.Second) {
+	}
+	if err := token.Error(); err != nil {
+		log.Info("Connection to Broker Failed")
+	} else {
+		log.Info("Connection to Broker succeeded")
+	}
 
 	log.Info("The RT-App-Controller was registered")
 

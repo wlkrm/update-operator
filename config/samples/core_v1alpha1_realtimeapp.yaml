@@ -1,7 +1,80 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cnc-kernels-conf
+data:
+  configuration.json: |
+    {
+        "cncConfig": {
+            "startupfilePathFivX": "./FiveXKernelRootDir/listen/hochlauf.lis",
+            "startupfilePathOsaka": "./OsacaKernelRootDir/listen/hochlauf.lis", 
+            "startupfilePath": "./FiveXKernelRootDir/listen/hochlauf.lis", 
+            "ncProgramName": "nc_test.nc",
+            "numberOfAxes": 6,
+            "cycletime": 10000,
+            "triggerThreadPriority": 70,
+            "txOffset": 150000,
+            "simulationMode": true
+        },
+        "connectorConfig": {
+            "interface": "enp4s0",
+            "destinationMacOsacaAlt": "68:ED:A6:03:9E:30",
+            "destinationMacOsaka": "68:ED:A6:03:9E:30",
+            "destinationMac": "00:1B:21:EA:B8:EA",
+            "destinationMacFiveX": "68:ED:A6:03:9E:24",
+            "socketPriority": 4,
+            "useTSN": false,
+            "destinationIP": "10.58.103.100",
+            "destinationPort": 8888,
+            "useTCP": true
+        },
+        "mqttConfig": {
+            "Hostname": "host.minikube.internal", 
+            "Port": 1883, 
+            "Username": "", 
+            "Password": "", 
+            "Protocol": "tcp",
+            "NcCodeTopic": "ncfile",
+            "NcStateTopic": "ncstate",
+            "RtAppStateTopic": "state",
+            "CncName": "osaca-simulation"
+        }
+    }
+---
 apiVersion: core.isw.de/v1alpha1
 kind: RealTimeApp
 metadata:
   name: realtimeapp-sample
 spec:
-  image: nginxdemos/hello
-  # TODO(user): Add fields here
+  podspec: 
+      imagePullSecrets:
+        - name: gitlab-credentials
+      containers:
+      - env:
+          - name: APP
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.labels['app']
+          - name: NUMBER
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.labels['number']
+          - name: PODNAME
+            value: "$(APP)-$(NUMBER)"
+        name: cnc-osaka
+        image: git.isw.uni-stuttgart.de:5000/projekte/forschung/2021_bmwi_sdm4fzi/isw4_konfiguration_und_deployment/cnc:latest
+        imagePullPolicy: Always
+        securityContext:
+          allowPrivilegeEscalation: true
+          runAsUser: 0
+          privileged: true
+        volumeMounts:
+        - name: config-volume
+          mountPath: /app/configuration.json
+          subPath: configuration.json
+        resources: {}
+      volumes:
+      - name: config-volume
+        configMap:
+          name: cnc-kernels-conf

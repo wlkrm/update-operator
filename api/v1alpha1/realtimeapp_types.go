@@ -17,6 +17,7 @@ limitations under the License.
 package v1alpha1
 
 import (
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -27,9 +28,9 @@ import (
 type RealTimeAppSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
-
 	// Image is the image used for the realtimeapp
-	Image string `json:"image,omitempty"`
+	Image   string         `json:"image,omitempty"`
+	PodSpec corev1.PodSpec `json:"podspec,omitempty"`
 }
 
 // RealTimeAppStatus defines the observed state of RealTimeApp

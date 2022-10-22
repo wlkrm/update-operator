@@ -1,1 +1,1 @@
-kubectl apply -f config/samples/core_v1alpha1_realtimeapp.yaml
+kubectl apply -f demo/core_v1alpha1_realtimeapp.yaml

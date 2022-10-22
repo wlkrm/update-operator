@@ -1,0 +1,117 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mosquitto
+  labels:
+    app: infrastructure
+    system: mosquitto
+    environment: staging
+data:
+  mosquitto.conf: |
+    #pid_file /var/run/mosquitto.pid
+    persistence true
+    persistence_location /mqtt/data/
+
+    user mosquitto
+
+    listener 1883
+    protocol mqtt
+    allow_anonymous true
+
+    listener 1884
+    protocol websockets
+    allow_anonymous true
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  
+  labels:
+    app: infrastructure
+    system: mosquitto
+    environment: staging
+  name: mosquitto
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: infrastructure
+      system: mosquitto
+      environment: staging
+  template:
+    metadata:
+      labels:
+        app: infrastructure
+        system: mosquitto
+        environment: staging
+    spec:
+      containers:
+        - name: mosquitto
+          image: eclipse-mosquitto:2.0.10
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 1883
+              name: tcp-mosquitto
+              protocol: TCP
+            - containerPort: 1884
+              name: ws-mosquitto
+              protocol: TCP
+          resources: {}
+          volumeMounts:
+            - name: mosquitto
+              mountPath: /mosquitto/config/mosquitto.conf
+              subPath: mosquitto.conf
+              readOnly: true
+      volumes:
+      - name: mosquitto
+        configMap:
+          name: mosquitto
+---
+apiVersion: v1
+kind: Service
+metadata:
+  
+  name: mosquitto
+  labels: 
+    app: infrastructure
+    system: mosquitto
+    environment: staging
+spec:
+  type: NodePort
+  ports:
+    - port: 1883
+      protocol: TCP
+      targetPort: tcp-mosquitto
+      nodePort: 30883
+      name: tcp-mosquitto
+    - port: 1884
+      name: ws-mosquitto
+      targetPort: ws-mosquitto
+  selector:
+    app: infrastructure
+    system: mosquitto
+    environment: staging
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  
+  name: mosquitto
+  labels: 
+    app: infrastructure
+    system: mosquitto
+    environment: staging
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+spec:
+  rules:
+  - host: mosquitto.prj-sdm06.isw.uni-stuttgart.de
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: mosquitto
+            port:
+              name: ws-mosquitto

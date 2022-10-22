@@ -47,7 +47,7 @@ ifeq ($(USE_IMAGE_DIGESTS), true)
 endif
 
 # Image URL to use all building/pushing image targets
-IMG ?= controller:latest
+IMG ?= git.isw.uni-stuttgart.de:5000/projekte/forschung/2021_bmwi_sdm4fzi/isw4_konfiguration_und_deployment/update-controller
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
 ENVTEST_K8S_VERSION = 1.24.1
 
@@ -114,7 +114,7 @@ build: generate fmt vet ## Build manager binary.
 
 .PHONY: run
 run: manifests generate fmt vet ## Run a controller from your host.
-	go run ./main.go
+	MQTT_URL="localhost" go run ./main.go
 
 .PHONY: docker-build
 docker-build: test ## Build docker image with the manager.
@@ -147,6 +147,12 @@ deploy: manifests kustomize ## Deploy controller to the K8s cluster specified in
 undeploy: ## Undeploy controller from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
 	$(KUSTOMIZE) build config/default | kubectl delete --ignore-not-found=$(ignore-not-found) -f -
 
+.PHONY: demo
+demo: manifests kustomize ## Deploy controller to the K8s cluster specified in ~/.kube/config.
+	kubectl apply -f demo/secrets.yaml
+	kubectl apply -f demo/mosquitto.yaml
+	cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG}
+	$(KUSTOMIZE) build config/default | kubectl apply -f -
 ##@ Build Dependencies
 
 ## Location to install dependencies to

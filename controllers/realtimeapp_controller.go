@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -409,15 +410,21 @@ func listen(r *RealTimeAppReconciler, topic string) {
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *RealTimeAppReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	var broker = "192.168.178.24"
+	var broker = os.Getenv("MQTT_URL")
 	var port = 1883
+	log.Info("Connecting to MQTT_URL: " + broker)
 	opts := mqtt.NewClientOptions()
 	opts.AddBroker(fmt.Sprintf("tcp://%s:%d", broker, port))
+	opts.SetAutoReconnect(true)
+	opts.SetMaxReconnectInterval(10 * time.Second)
+	opts.SetReconnectingHandler(func(c mqtt.Client, options *mqtt.ClientOptions) {
+		log.Info("...... mqtt reconnecting ......")
+	})
 
 	r.mqttClient = mqtt.NewClient(opts)
-	token := r.mqttClient.Connect()
 
-	for !token.WaitTimeout(3 * time.Second) {
+	token := r.mqttClient.Connect()
+	for !token.WaitTimeout(1000 * time.Second) {
 	}
 	if err := token.Error(); err != nil {
 		log.Info("Connection to Broker Failed")

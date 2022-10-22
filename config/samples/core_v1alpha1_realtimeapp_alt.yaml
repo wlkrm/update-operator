@@ -45,7 +45,7 @@ data:
 apiVersion: core.isw.de/v1alpha1
 kind: RealTimeApp
 metadata:
-  name: realtimeapp-sample-1
+  name: realtimeapp-sample
 spec:
   podspec: 
       imagePullSecrets:
@@ -63,7 +63,7 @@ spec:
           - name: PODNAME
             value: "$(APP)-$(NUMBER)"
         name: cnc-osaka
-        image: git.isw.uni-stuttgart.de:5000/projekte/forschung/2021_bmwi_sdm4fzi/isw4_konfiguration_und_deployment/cnc:latest
+        image: git.isw.uni-stuttgart.de:5000/projekte/forschung/2021_bmwi_sdm4fzi/isw4_konfiguration_und_deployment/cnc:tsn
         imagePullPolicy: Always
         securityContext:
           allowPrivilegeEscalation: true

@@ -1,0 +1,1 @@
+kubectl apply -f config/samples/core_v1alpha1_realtimeapp.yaml

@@ -148,7 +148,7 @@ undeploy: ## Undeploy controller from the K8s cluster specified in ~/.kube/confi
 	$(KUSTOMIZE) build config/default | kubectl delete --ignore-not-found=$(ignore-not-found) -f -
 
 .PHONY: demo
-demo: kustomize ## Deploy controller to the K8s cluster specified in ~/.kube/config.
+demo: manifests kustomize ## Deploy controller to the K8s cluster specified in ~/.kube/config.
 	kubectl apply -f demo/infrastructure-gui.yaml
 	kubectl apply -f demo/cnc-gui.yaml
 	kubectl apply -f demo/namespace.yaml
@@ -243,3 +243,13 @@ catalog-build: opm ## Build a catalog image.
 .PHONY: catalog-push
 catalog-push: ## Push a catalog image.
 	$(MAKE) docker-push IMG=$(CATALOG_IMG)
+
+.PHONY: logs
+logs:
+	bash scripts/logs.sh
+
+.PHONY: restart
+restart:
+	kubectl rollout restart deployments/update-operator-controller-manager -n update-operator-system
+
+

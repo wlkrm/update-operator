@@ -112,6 +112,9 @@ func newServiceForRealTimeApp(rta *v1alpha1.RealTimeApp, number uint) *corev1.Se
 	}
 }
 
+//+kubebuilder:rbac:groups=core,resources=deployments;services,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=apps,resources=deployments;services,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=networking.k8s.io,resources=ingresses;ingresses/status,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=core.isw.de,resources=realtimeapps,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=core.isw.de,resources=realtimeapps/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=core.isw.de,resources=realtimeapps/finalizers,verbs=update

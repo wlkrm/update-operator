@@ -93,6 +93,32 @@ rules:
   - update
   - create
   - patch
+- apiGroups:
+  - core.isw.de
+  resources:
+  - realtimeapps
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - core.isw.de
+  resources:
+  - realtimeapps/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - core.isw.de
+  resources:
+  - realtimeapps/status
+  verbs:
+  - get
+  - patch
+  - update
 ---
 kind: ClusterRoleBinding
 apiVersion: rbac.authorization.k8s.io/v1

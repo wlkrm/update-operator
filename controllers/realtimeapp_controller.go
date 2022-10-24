@@ -203,6 +203,8 @@ func (r *RealTimeAppReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 				return reconcile.Result{}, nil
 			}
 			app.Status.State = "Updating"
+			app.Status.Deployment = newDeployment.Name
+			app.Status.LastDeployment = deployment.Name
 			err = r.Status().Update(context.TODO(), &app)
 			if err != nil {
 				log.Error(err, "Failed to update Realtimeapp Status")

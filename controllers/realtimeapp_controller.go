@@ -217,8 +217,8 @@ func (r *RealTimeAppReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 			idx = uint(1)
 			idxNew = uint(0)
 		}
-		log.Info("Deleting old Deployment", "Name", existingDeployment.Items[idx].Name)
-		app.Status.State = "Deleting"
+		log.Info("Updating new Deployment", "Name", existingDeployment.Items[idx].Name)
+		app.Status.State = "Updating"
 		err := r.Status().Update(context.TODO(), &app)
 		if err != nil {
 			log.Error(err, "Failed to update Realtimeapp Status")
@@ -228,6 +228,14 @@ func (r *RealTimeAppReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		oldName := fmt.Sprintf("%s-%d", app.Name, idx)
 		newName := fmt.Sprintf("%s-%d", app.Name, idxNew)
 		runUpdate(r, oldName, newName)
+
+		log.Info("Deleting new Deployment", "Name", existingDeployment.Items[idx].Name)
+		app.Status.State = "Deleting"
+		err = r.Status().Update(context.TODO(), &app)
+		if err != nil {
+			log.Error(err, "Failed to update Realtimeapp Status")
+			return ctrl.Result{}, err
+		}
 
 		err = r.Client.Delete(context.TODO(), &existingDeployment.Items[idx], client.GracePeriodSeconds(5))
 		if err != nil {
@@ -253,6 +261,7 @@ func (r *RealTimeAppReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		service := newServiceForRealTimeApp(&app, 0)
 		controllerutil.SetControllerReference(&app, deployment, r.Scheme)
 		controllerutil.SetControllerReference(&app, service, r.Scheme)
+
 		err = r.Create(context.TODO(), deployment)
 		if err != nil {
 			log.Error(err, "Failed to create a deployment")
@@ -263,6 +272,15 @@ func (r *RealTimeAppReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 			log.Error(err, "Failed to create a service")
 			return reconcile.Result{}, err
 		}
+		app.Status.Deployment = deployment.Name
+		app.Status.State = "Running"
+		log.Info("Updating Status")
+		err := r.Status().Update(context.TODO(), &app)
+		if err != nil {
+			log.Error(err, "Failed to update Realtimeapp Status")
+			return ctrl.Result{}, err
+		}
+
 		return ctrl.Result{Requeue: true}, nil
 	}
 }

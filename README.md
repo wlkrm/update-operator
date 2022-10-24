@@ -101,5 +101,15 @@ make install run
 # Demo for SPS 2022
 sudo make demo
 
+# Local Debug ENV
+make demo_local
+kubectl port-forward deployments/mosquitto 1883:1883 --address='0.0.0.0'
+kubectl port-forward deployments/mosquitto 1884:1884
+kubectl proxy
+make install
+make run
+# Get IP of minikube (minikube ip -> frontend at IP:192.168.49.2)
+make demo_rtapps
+
 # TODO:
 - Add kustomziation for easier deployment (e.g. ingress in demo is hardcoded)

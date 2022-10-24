@@ -114,7 +114,7 @@ build: generate fmt vet ## Build manager binary.
 
 .PHONY: run
 run: manifests generate fmt vet ## Run a controller from your host.
-	MQTT_URL="localhost" go run ./main.go
+	bash scripts/run.sh
 
 .PHONY: docker-build
 docker-build: test ## Build docker image with the manager.
@@ -156,6 +156,23 @@ demo: manifests kustomize ## Deploy controller to the K8s cluster specified in ~
 	kubectl apply -f demo/mosquitto.yaml
 	cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG}
 	$(KUSTOMIZE) build config/default | kubectl apply -f -
+
+.PHONY: demo_local
+demo_local: ## Deploy controller to the K8s cluster specified in ~/.kube/config.
+	kubectl apply -f demo_local/infrastructure-gui.yaml
+	kubectl apply -f demo_local/cnc-gui.yaml
+	kubectl apply -f demo_local/namespace.yaml
+	kubectl apply -f demo_local/secrets.yaml
+	kubectl apply -f demo_local/mosquitto.yaml
+
+.PHONY: demo_rtapps
+demo_rtapps:
+	kubectl apply -f demo_rtapps/
+
+.PHONY: rmdemo_rtapps
+rmdemo_rtapps:
+	kubectl delete -f demo_rtapps/
+
 ##@ Build Dependencies
 
 ## Location to install dependencies to
@@ -251,5 +268,10 @@ logs:
 .PHONY: restart
 restart:
 	kubectl rollout restart deployments/update-operator-controller-manager -n update-operator-system
+
+.PHONY: rmdemo
+rmdemo:
+	kubectl delete -f demo_local/
+	kubectl delete -f demo_messe/
 
 

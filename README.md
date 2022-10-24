@@ -97,3 +97,9 @@ minikube start
 make generate
 make manifests
 make install run
+
+# Demo for SPS 2022
+sudo make demo
+
+# TODO:
+- Add kustomziation for easier deployment (e.g. ingress in demo is hardcoded)

@@ -1,0 +1,195 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+
+  name: infrastructure-messe-gui-conf
+  labels:
+    app: infrastructure
+    system: infrastructure-messe-gui
+    environment: staging
+data:
+  appsettings.json: |
+    {
+      "Logging": {
+        "LogLevel": {
+          "Default": "Information",
+          "Microsoft": "Warning",
+          "Microsoft.AspNetCore.SpaProxy": "Information",
+          "Microsoft.Hosting.Lifetime": "Information"
+        }
+      },
+      "ElasticsearchUrl": "http://elasticsearch.kube-system.svc.cluster.local:9200",
+      "FrontendSettings": {
+        "DomainName": "edge.isw.uni-stuttgart.de",
+        "Namespace": "maschinenfabrik"
+      }
+    }
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: infrastructure-messe-gui
+
+  labels:
+    app: infrastructure
+    system: infrastructure-messe-gui
+    environment: staging
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: infrastructure-messe-gui
+  labels:
+    app: infrastructure
+    system: infrastructure-messe-gui
+    environment: staging
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  - namespaces
+  - services
+  - endoints
+  - deployments
+  verbs:
+  - get
+  - list
+  - watch
+  - update
+  - create
+  - patch
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - ingresses
+  verbs:
+  - get
+  - list
+  - watch
+  - update
+  - create
+  - patch
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - ingresses/status
+  verbs:
+  - get
+  - list
+  - watch
+  - update
+  - create
+  - patch
+- apiGroups:
+  - apps
+  resources:
+  - deployments
+  verbs:
+  - get
+  - list
+  - watch
+  - update
+  - create
+  - patch
+---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: infrastructure-messe-gui
+roleRef:
+  kind: ClusterRole
+  name: infrastructure-messe-gui
+  apiGroup: rbac.authorization.k8s.io
+subjects:
+- kind: ServiceAccount
+  name: infrastructure-messe-gui
+  namespace: default
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: infrastructure-messe-gui
+
+  labels:
+    app: infrastructure-messe-gui
+    system: infrastructure-messe-gui
+    environment: staging
+spec:
+  selector:
+    matchLabels:
+      app: infrastructure
+      system: infrastructure-messe-gui
+      environment: staging
+  template:
+    metadata:
+      labels:
+        app: infrastructure
+        system: infrastructure-messe-gui
+        environment: staging
+    spec:
+      serviceAccount: infrastructure-messe-gui
+      serviceAccountName: infrastructure-messe-gui
+      imagePullSecrets:
+        - name: gitlab-credentials
+      containers:
+      - name: infrastructure-messe-gui
+        image: git.isw.uni-stuttgart.de:5000/projekte/forschung/2021_bmwi_sdm4fzi/isw9_forschungsdemonstrator/maschinenfabrik/infrastructure-messe-gui:latest
+        imagePullPolicy: Always
+        ports:
+          - name: http
+            containerPort: 5000
+            protocol: TCP
+        volumeMounts:
+        - name: config-volume
+          mountPath: /app/appsettings.json
+          subPath: appsettings.json
+      volumes:
+      - name: config-volume
+        configMap:
+          name: infrastructure-messe-gui-conf
+---
+apiVersion: v1
+kind: Service
+metadata:
+
+  name: infrastructure-messe-gui
+  labels:
+    app: infrastructure
+    system: infrastructure-messe-gui
+    environment: staging
+spec:
+  type: ClusterIP
+  selector:
+    app: infrastructure
+    system: infrastructure-messe-gui
+    environment: staging
+  ports:
+    - port: 5000
+      targetPort: http
+      protocol: TCP
+      name: http
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+
+  name: infrastructure-messe-gui
+  labels:
+    app: infrastructure
+    system: infrastructure-messe-gui
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+spec:
+  rules:
+    - host: containers.edge.isw.uni-stuttgart.de
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: infrastructure-messe-gui
+                port:
+                  name: http

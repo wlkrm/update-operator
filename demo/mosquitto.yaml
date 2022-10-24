@@ -105,7 +105,7 @@ metadata:
     nginx.ingress.kubernetes.io/rewrite-target: /
 spec:
   rules:
-  - host: mosquitto.prj-sdm06.isw.uni-stuttgart.de
+  - host: mosquitto.edge.isw.uni-stuttgart.de
     http:
       paths:
       - path: /

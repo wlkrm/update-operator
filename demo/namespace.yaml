@@ -1,0 +1,8 @@
+---
+kind: Namespace
+apiVersion: v1
+metadata:
+  name: update-operator-system
+  labels:
+    name: update-operator-system
+

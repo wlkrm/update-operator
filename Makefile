@@ -148,7 +148,10 @@ undeploy: ## Undeploy controller from the K8s cluster specified in ~/.kube/confi
 	$(KUSTOMIZE) build config/default | kubectl delete --ignore-not-found=$(ignore-not-found) -f -
 
 .PHONY: demo
-demo: manifests kustomize ## Deploy controller to the K8s cluster specified in ~/.kube/config.
+demo: kustomize ## Deploy controller to the K8s cluster specified in ~/.kube/config.
+	kubectl apply -f demo/infrastructure-gui.yaml
+	kubectl apply -f demo/cnc-gui.yaml
+	kubectl apply -f demo/namespace.yaml
 	kubectl apply -f demo/secrets.yaml
 	kubectl apply -f demo/mosquitto.yaml
 	cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG}

@@ -1,0 +1,82 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gui
+  labels:
+    app: infrastructure
+    system: gui
+    environment: staging
+spec:
+  selector:
+    matchLabels:
+      app: infrastructure
+      system: gui
+      environment: staging
+  template:
+    metadata:
+      labels:
+        app: infrastructure
+        system: gui
+        environment: staging
+    spec:
+      containers:
+      - name: gui
+        image: httpd:2.4
+        imagePullPolicy: Always
+        ports:
+        - name: http
+          containerPort: 80
+          protocol: TCP
+        volumeMounts:
+        - name: config-volume
+          mountPath: /usr/local/apache2/htdocs/
+        resources: {}
+      volumes:
+      - name: config-volume
+        hostPath:
+          path: /home/rbg/git/update-controller/demo/html
+          type: Directory
+---
+apiVersion: v1
+kind: Service
+metadata:
+
+  name: gui
+  labels:
+    app: infrastructure
+    system: gui
+    environment: staging
+spec:
+  type: ClusterIP
+  selector:
+    app: infrastructure
+    system: gui
+    environment: staging
+  ports:
+  - port: 80
+    targetPort: http
+    protocol: TCP
+    name: http
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+
+  name: gui
+  labels:
+    app: infrastructure
+    system: gui
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+spec:
+  rules:
+  - host: gui.edge.isw.uni-stuttgart.de
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: gui
+            port:
+              name: http

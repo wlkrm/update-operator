@@ -19,6 +19,7 @@ package controllers
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"strconv"
@@ -31,7 +32,7 @@ import (
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 	appv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -134,7 +135,7 @@ func (r *RealTimeAppReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	var app corev1alpha1.RealTimeApp
 	err := r.Get(ctx, req.NamespacedName, &app)
 	if err != nil {
-		if errors.IsNotFound(err) {
+		if kerrors.IsNotFound(err) {
 			// Reqeuest object not found, could have been deleted?
 			return reconcile.Result{}, nil
 		}
@@ -229,9 +230,30 @@ func (r *RealTimeAppReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 
 		oldName := fmt.Sprintf("%s-%d", app.Name, idx)
 		newName := fmt.Sprintf("%s-%d", app.Name, idxNew)
-		runUpdate(r, oldName, newName)
+		updateError := runUpdate(r, oldName, newName)
 
-		log.Info("Deleting new Deployment", "Name", existingDeployment.Items[idx].Name)
+		if updateError != nil {
+			log.Info("Update Process returned with error.")
+			switch {
+			case updateError.Error() == "WAIT_NEW":
+				// TODO
+			case updateError.Error() == "WAIT_OLD":
+				// Force by continuing
+			case updateError.Error() == "WAIT_UPDATE":
+				// Force by continuing
+			case updateError.Error() == "WAIT_CONSUME":
+				// Force by coninuing
+			case updateError.Error() == "WAIT_DONE":
+				// Force by continuing
+
+			default:
+				log.Info("Unknown UpdateError " + updateError.Error())
+			}
+		} else {
+			log.Info("Updated without any errors")
+		}
+
+		log.Info("Deleting old Deployment", "Name", existingDeployment.Items[idx].Name)
 		app.Status.State = "Deleting"
 		err = r.Status().Update(context.TODO(), &app)
 		if err != nil {
@@ -302,7 +324,9 @@ type RtAppUpdate struct {
 	SyncBlock uint64 `json:"syncBlock"`
 }
 
-func runUpdate(r *RealTimeAppReconciler, oldAppName string, newAppName string) {
+func runUpdate(r *RealTimeAppReconciler, oldAppName string, newAppName string) error {
+	defer r.mqttClient.Unsubscribe("rtapps/"+oldAppName+"/update", "rtapps/"+newAppName+"/state", "rtapps/"+oldAppName+"/state")
+
 	a := make(chan bool)
 	consumeUpdateReady := make(chan bool)
 	providUpdateReady := make(chan bool)
@@ -358,12 +382,12 @@ func runUpdate(r *RealTimeAppReconciler, oldAppName string, newAppName string) {
 		var state RtAppState
 		err := json.Unmarshal(msg.Payload(), &state)
 		if err == nil {
-			if state.State == "DONE" {
+			if state.State == "DONE" || state.State == "OFFLINE" {
 				if !isDone() {
 					log.Info("Waiting on done")
-					doneReady <- true
+					go func() { doneReady <- true }()
 				}
-			} else if state.State != "OP" {
+			} else if state.State != "OP" && state.State != "PROVIDEUPDATE" {
 				select {
 				case oldNotRunning <- true:
 				default:
@@ -377,12 +401,48 @@ func runUpdate(r *RealTimeAppReconciler, oldAppName string, newAppName string) {
 		}
 	})
 
-	<-a
-	x := <-oldNotRunning
+	c1 := make(chan bool)
+	go func() {
+		time.Sleep(20 * time.Second)
+		c1 <- true
+	}()
+
+	log.Info("Waiting for new Application")
+
+	select {
+	case <-a:
+		break
+	case <-c1:
+		log.Info("Timed out")
+		return errors.New("WAIT_NEW")
+	}
+
+	log.Info("New Application started")
+	log.Info("Waiting for status from old Application")
+
+	c2 := make(chan bool)
+	go func() {
+		time.Sleep(20 * time.Second)
+		c2 <- true
+	}()
+
+	x := false
+	select {
+	case ret := <-oldNotRunning:
+		x = ret
+		break
+	case <-c2:
+		log.Info("Timed out")
+		return errors.New("WAIT_OLD")
+	}
+
+	log.Info("Received Status from old Application")
+
 	if x {
 		r.mqttClient.Unsubscribe("rtapps/"+oldAppName+"/update", "rtapps/"+newAppName+"/state", "rtapps/"+oldAppName+"/state")
-		return
+		return nil
 	}
+
 	// Request Update from Old App
 	log.Info("Requesting Update from Old App")
 	req := &RtAppAction{Action: "PROVIDEUPDATE", G_code: "", SyncBlock: 0}
@@ -395,7 +455,22 @@ func runUpdate(r *RealTimeAppReconciler, oldAppName string, newAppName string) {
 	}
 
 	log.Info("Requested Update from Old App")
-	<-providUpdateReady
+
+	c3 := make(chan bool)
+	go func() {
+		time.Sleep(10 * time.Second)
+		c3 <- true
+	}()
+
+	select {
+	case <-providUpdateReady:
+		break
+	case <-c3:
+		log.Info("Timed out")
+		return errors.New("WAIT_UPDATE")
+	}
+
+	log.Info("Received Update from Old App")
 	// Await Update from Old App
 
 	// Request Consumeupdate
@@ -409,8 +484,39 @@ func runUpdate(r *RealTimeAppReconciler, oldAppName string, newAppName string) {
 		log.Info(token.Error().Error())
 	}
 
-	<-doneReady
+	log.Info("Waiting for new Application to consume update")
 
+	c4 := make(chan bool)
+	go func() {
+		time.Sleep(10 * time.Second)
+		c4 <- true
+	}()
+
+	select {
+	case <-consumeUpdateReady:
+		break
+	case <-c4:
+		log.Info("Timed out")
+		return errors.New("WAIT_CONSUME")
+	}
+
+	log.Info("New Application Consumed Update")
+
+	log.Info("Waiting for old App to be Done")
+	c5 := make(chan bool)
+	go func() {
+		time.Sleep(300 * time.Second)
+		c5 <- true
+	}()
+
+	select {
+	case <-doneReady:
+		break
+	case <-c5:
+		log.Info("Timed out")
+		return errors.New("WAIT_DONE")
+	}
+	log.Info("Received old App beeing Done")
 	log.Info("Requesting Continue to New App")
 	req3 := RtAppAction{Action: "MCM_PROCESS_ACTIVE"}
 	req3Json, err := json.Marshal(req3)
@@ -421,7 +527,7 @@ func runUpdate(r *RealTimeAppReconciler, oldAppName string, newAppName string) {
 		log.Info(token.Error().Error())
 	}
 
-	r.mqttClient.Unsubscribe("rtapps/"+oldAppName+"/update", "rtapps/"+newAppName+"/state", "rtapps/"+oldAppName+"/state")
+	return nil
 }
 
 func listen(r *RealTimeAppReconciler, topic string) {

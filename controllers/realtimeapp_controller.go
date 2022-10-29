@@ -387,14 +387,14 @@ func runUpdate(r *RealTimeAppReconciler, oldAppName string, newAppName string) e
 					log.Info("Waiting on done")
 					go func() { doneReady <- true }()
 				}
-			} else if state.State != "OP" && state.State != "PROVIDEUPDATE" {
+			} else if state.State == "OP" {
 				select {
-				case oldNotRunning <- true:
+				case oldNotRunning <- false:
 				default:
 				}
 			} else {
 				select {
-				case oldNotRunning <- false:
+				case oldNotRunning <- true:
 				default:
 				}
 			}

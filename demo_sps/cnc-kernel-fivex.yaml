@@ -1,0 +1,129 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cnc-fivex-conf
+  labels:
+    app: infrastructure
+    system: cnc-fivex
+    environment: staging
+data:
+  realtimeapp-cnc-fivex-1.json: |
+    {
+        "cncConfig": {
+            "startupfilePathFivX": "./FiveXKernelRootDir/listen/hochlauf.lis",
+            "startupfilePathOsaka": "./fivexKernelRootDir/listen/hochlauf.lis", 
+            "startupfilePath": "./FiveXKernelRootDir/listen/hochlauf.lis", 
+            "ncProgramName": "nc_test.nc",
+            "numberOfAxes": 6,
+            "cycletime": 2000,
+            "triggerThreadPriority": 70,
+            "txOffset": 150000,
+            "simulationMode": false
+        },
+        "connectorConfig": {
+            "interface": "macvlan5isg",
+            "destinationMacfivexAlt": "68:ED:A6:03:9E:30",
+            "destinationMacOsaka": "00:1B:21:EA:B8:EA",
+            "destinationMacOsaka": "00:1B:21:EA:B8:EA",
+            "destinationMac": "68:ED:A6:03:9E:24",
+            "destinationMacFiveX": "68:ED:A6:03:9E:24",
+            "socketPriority": 6,
+            "useTSN": true,
+            "destinationIP": "10.58.103.100",
+            "destinationPort": 7777,
+            "useTCP": false
+        },
+        "mqttConfig": {
+            "Hostname": "localhost", 
+            "Port": 30883, 
+            "Username": "", 
+            "Password": "", 
+            "Protocol": "tcp",
+            "NcCodeTopic": "ncfile",
+            "NcStateTopic": "ncstate",
+            "RtAppStateTopic": "state",
+            "CncName": "fivex"
+        }
+    }
+  realtimeapp-cnc-fivex-2.json: |
+    {
+        "cncConfig": {
+            "startupfilePathFivX": "./FiveXKernelRootDir/listen/hochlauf.lis",
+            "startupfilePathOsaka": "./fivexKernelRootDir/listen/hochlauf.lis", 
+            "startupfilePath": "./FiveXKernelRootDir/listen/hochlauf.lis", 
+            "ncProgramName": "nc_test.nc",
+            "numberOfAxes": 6,
+            "cycletime": 2000,
+            "triggerThreadPriority": 70,
+            "txOffset": 150000,
+            "simulationMode": true
+        },
+        "connectorConfig": {
+            "interface": "macvlan5isw",
+            "destinationMacfivexAlt": "00:1B:21:EA:B8:EA",
+            "destinationMacOsaka": "68:ED:A6:03:9E:30",
+            "destinationMac": "68:ED:A6:03:9E:24",
+            "destinationMacFiveX": "68:ED:A6:03:9E:24",
+            "socketPriority": 6,
+            "useTSN": true,
+            "destinationIP": "10.58.103.100",
+            "destinationPort": 7777,
+            "useTCP": false
+        },
+        "mqttConfig": {
+            "Hostname": "localhost", 
+            "Port": 30883, 
+            "Username": "", 
+            "Password": "", 
+            "Protocol": "tcp",
+            "NcCodeTopic": "ncfile",
+            "NcStateTopic": "ncstate",
+            "RtAppStateTopic": "state",
+            "CncName": "fivex"
+        }
+    }
+---
+apiVersion: core.isw.de/v1alpha1
+kind: RealTimeApp
+metadata:
+  name: realtimeapp-cnc-fivex
+spec:
+  podspec: 
+      imagePullSecrets:
+        - name: gitlab-credentials
+      hostNetwork: true
+      containers:
+      - env:
+          - name: APP
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.labels['app']
+          - name: NUMBER
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.labels['number']
+          - name: PODNAME
+            value: "$(APP)-$(NUMBER)"
+        name: cnc-fivex
+        image: git.isw.uni-stuttgart.de:5000/projekte/forschung/2021_bmwi_sdm4fzi/isw4_konfiguration_und_deployment/cnc:fivex
+        imagePullPolicy: Always
+        securityContext:
+          allowPrivilegeEscalation: true
+          runAsUser: 0
+          privileged: true
+        volumeMounts:
+        - name: config-volume
+          mountPath: /app/configuration.json
+          subPath: realtimeapp-cnc-fivex-1.json
+        - name: listen-volume
+          mountPath: /app/FiveXKernelRootDir
+        resources: {}
+      volumes:
+      - name: config-volume
+        configMap:
+          name: cnc-fivex-conf
+      - name: listen-volume
+        hostPath: 
+            path: /home/rbg/git/infrastructure_messe_rt/realtimeapps_configs/FiveXKernelRootDir2
+            type: Directory

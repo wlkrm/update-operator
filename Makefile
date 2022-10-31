@@ -173,6 +173,14 @@ demo_rtapps:
 rmdemo_rtapps:
 	kubectl delete -f demo_rtapps/
 
+.PHONY: demo_sps
+demo_sps:
+	kubectl apply -f demo_sps/
+
+.PHONY: rm_demo_sps
+rm_demo_sps:
+	kubectl delete -f demo_sps/
+
 ##@ Build Dependencies
 
 ## Location to install dependencies to

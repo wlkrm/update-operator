@@ -274,4 +274,9 @@ rmdemo:
 	kubectl delete -f demo_local/
 	kubectl delete -f demo_messe/
 
+.PHONY: rollout_guis
+rollout_guis:
+	kubectl rollout restart deployment/infrastructure-messe-gui
+	kubectl rollout restart deployment/cnc-kernels
+
 

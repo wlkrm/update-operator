@@ -41,6 +41,7 @@ spec:
         args:
         - --leader-elect
         image: controller:latest
+        imagePullPolicy: Always
         name: manager
         env:
           - name: MQTT_URL
@@ -73,4 +74,4 @@ spec:
             cpu: 10m
             memory: 64Mi
       serviceAccountName: controller-manager
-      terminationGracePeriodSeconds: 10
+      terminationGracePeriodSeconds: 2

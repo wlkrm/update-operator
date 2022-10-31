@@ -8,7 +8,7 @@ metadata:
     system: cnc-osaca
     environment: staging
 data:
-  realtimeapp-cnc-osaca-1.json: |
+  realtimeapp-cnc-v1.json: |
     {
         "cncConfig": {
             "startupfilePathFivX": "./FiveXKernelRootDir/listen/hochlauf.lis",
@@ -46,7 +46,7 @@ data:
             "CncName": "osaca"
         }
     }
-  realtimeapp-cnc-osaca-2.json: |
+  realtimeapp-cnc-v2.json: |
     {
         "cncConfig": {
             "startupfilePathFivX": "./FiveXKernelRootDir/listen/hochlauf.lis",
@@ -114,7 +114,7 @@ spec:
         volumeMounts:
         - name: config-volume
           mountPath: /app/configuration.json
-          subPath: realtimeapp-cnc-osaca-1.json
+          subPath: realtimeapp-cnc-v1.json
         resources: {}
       volumes:
       - name: config-volume

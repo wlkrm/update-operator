@@ -22,8 +22,8 @@ data:
             "simulationMode": false
         },
         "connectorConfig": {
-            "interface2": "macvlan5isg",
-            "interface": "enp8s0.5",
+            "interface": "macvlan5isg",
+            "interface2": "enp8s0.5",
             "destinationMacfivexAlt": "68:ED:A6:03:9E:30",
             "destinationMacOsaka": "00:1B:21:EA:B8:EA",
             "destinationMacOsaka": "00:1B:21:EA:B8:EA",
@@ -61,8 +61,8 @@ data:
             "simulationMode": true
         },
         "connectorConfig": {
-            "interface2": "macvlan5isw",
-            "interface": "enp8s0.5",
+            "interface": "macvlan5isw",
+            "interface2": "enp8s0.5",
             "destinationMacfivexAlt": "00:1B:21:EA:B8:EA",
             "destinationMacOsaka": "68:ED:A6:03:9E:30",
             "destinationMac": "68:ED:A6:03:9E:24",

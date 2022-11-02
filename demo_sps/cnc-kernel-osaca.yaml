@@ -23,7 +23,7 @@ data:
         },
         "connectorConfig": {
             "interface": "macvlan1900isw",
-            "interface2": "enp9s0",
+            "interface2": "enp8s0.1900",
             "destinationMacOsacaAlt": "68:ED:A6:03:9E:30",
             "destinationMacOsaka": "00:1B:21:EA:B8:EA",
             "destinationMac": "00:1B:21:EA:B8:EA",
@@ -61,7 +61,7 @@ data:
         },
         "connectorConfig": {
             "interface": "macvlan1900isg",
-            "interface2": "enp9s0",
+            "interface2": "enp8s0",
             "destinationMacOsacaAlt": "00:1B:21:EA:B8:EA",
             "destinationMacOsaka": "68:ED:A6:03:9E:30",
             "destinationMac": "00:1B:21:EA:B8:EA",

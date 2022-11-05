@@ -113,6 +113,15 @@ func newServiceForRealTimeApp(rta *v1alpha1.RealTimeApp, number uint) *corev1.Se
 	}
 }
 
+// realtimeapp-xyz-deployment-0-xxx ->Prefix: realtimeapp-xyz-deployment-0 Suffix: -xxx
+func DeploymentNameToRealtimeAppName(deploymentName string) string {
+	deploymentNameParts := strings.Split(deploymentName, "-")
+	realtimeappName := strings.Join(deploymentNameParts[0:len(deploymentNameParts)-3], "-")
+	deploymentNumber, _ := strconv.ParseUint(deploymentNameParts[len(deploymentNameParts)-2], 10, 64)
+	name := fmt.Sprintf("%s-%d", realtimeappName, deploymentNumber)
+	return name
+}
+
 //+kubebuilder:rbac:groups=core,resources=deployments;services,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=apps,resources=deployments;services,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=networking.k8s.io,resources=ingresses;ingresses/status,verbs=get;list;watch;create;update;patch;delete
@@ -130,7 +139,7 @@ func newServiceForRealTimeApp(rta *v1alpha1.RealTimeApp, number uint) *corev1.Se
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.12.1/pkg/reconcile
 func (r *RealTimeAppReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	// reqLogger := log.WithValues("Request.Namespace", req.Namespace, "Request.Name", req.Name)
+	log.Info("Got request for realtimeapp " + req.NamespacedName.String())
 	// TODO(user): your logic here
 	var app corev1alpha1.RealTimeApp
 	err := r.Get(ctx, req.NamespacedName, &app)
@@ -214,13 +223,17 @@ func (r *RealTimeAppReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 			return ctrl.Result{Requeue: true}, nil
 		}
 	} else if len(existingDeployment.Items) == 2 {
-		idx := uint(0)
+		idxOld := uint(0)
 		idxNew := uint(1)
+
+		// Deployment at idx1 is actually the older one
 		if existingDeployment.Items[1].CreationTimestamp.Time.Before(existingDeployment.Items[0].CreationTimestamp.Time) {
-			idx = uint(1)
+			idxOld = uint(1)
 			idxNew = uint(0)
 		}
-		log.Info("Updating new Deployment", "Name", existingDeployment.Items[idx].Name)
+
+		log.Info("Updating Deployments", "OldDeployment", existingDeployment.Items[idxOld].Name, "NewDeployment", existingDeployment.Items[idxNew].Name)
+
 		app.Status.State = "Updating"
 		err := r.Status().Update(context.TODO(), &app)
 		if err != nil {
@@ -228,8 +241,10 @@ func (r *RealTimeAppReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 			return ctrl.Result{}, err
 		}
 
-		oldName := fmt.Sprintf("%s-%d", app.Name, idx)
-		newName := fmt.Sprintf("%s-%d", app.Name, idxNew)
+		oldName := DeploymentNameToRealtimeAppName(existingDeployment.Items[idxOld].Name)
+		newName := DeploymentNameToRealtimeAppName(existingDeployment.Items[idxNew].Name)
+		log.Info("Updating Realtimeapps", "OldApp", oldName, "NewApp", newName)
+
 		updateError := runUpdate(r, oldName, newName)
 
 		if updateError != nil {
@@ -253,7 +268,7 @@ func (r *RealTimeAppReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 			log.Info("Updated without any errors")
 		}
 
-		log.Info("Deleting old Deployment", "Name", existingDeployment.Items[idx].Name)
+		log.Info("Deleting old Deployment", "Old DeploymentName", existingDeployment.Items[idxOld].Name)
 		app.Status.State = "Deleting"
 		err = r.Status().Update(context.TODO(), &app)
 		if err != nil {
@@ -261,18 +276,18 @@ func (r *RealTimeAppReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 			return ctrl.Result{}, err
 		}
 
-		err = r.Client.Delete(context.TODO(), &existingDeployment.Items[idx], client.GracePeriodSeconds(5))
+		err = r.Client.Delete(context.TODO(), &existingDeployment.Items[idxOld], client.GracePeriodSeconds(5))
 		if err != nil {
 			log.Error(err, "Failed to delete old deployment")
 			return ctrl.Result{}, err
 		}
-		err = r.Client.Delete(context.TODO(), &exisitingServices.Items[idx], client.GracePeriodSeconds(5))
+		err = r.Client.Delete(context.TODO(), &exisitingServices.Items[idxOld], client.GracePeriodSeconds(5))
 		if err != nil {
 			log.Error(err, "Failed to delete old service")
 			return ctrl.Result{}, err
 		}
 		app.Status.State = "Running"
-		app.Status.LastDeployment = existingDeployment.Items[idx].Name
+		app.Status.LastDeployment = existingDeployment.Items[idxOld].Name
 		app.Status.Deployment = existingDeployment.Items[idxNew].Name
 		err = r.Status().Update(context.TODO(), &app)
 		if err != nil {
@@ -327,6 +342,7 @@ type RtAppUpdate struct {
 func runUpdate(r *RealTimeAppReconciler, oldAppName string, newAppName string) error {
 	defer r.mqttClient.Unsubscribe("rtapps/"+oldAppName+"/update", "rtapps/"+newAppName+"/state", "rtapps/"+oldAppName+"/state")
 
+	log.Info("Running Update", "OldApp", oldAppName, "NewApp", newAppName)
 	a := make(chan bool)
 	consumeUpdateReady := make(chan bool)
 	providUpdateReady := make(chan bool)

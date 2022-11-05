@@ -103,8 +103,7 @@ sudo make demo
 
 # Local Debug ENV
 make demo_local
-kubectl port-forward deployments/mosquitto 1883:1883 --address='0.0.0.0'
-kubectl port-forward deployments/mosquitto 1884:1884
+kubectl port-forward deployments/mosquitto 1883:1883 1884:1884 --address='0.0.0.0'
 kubectl proxy
 make install
 make run

@@ -8,7 +8,7 @@ metadata:
     system: cnc-fivex
     environment: staging
 data:
-  realtimeapp-cnc-fivex-1.json: |
+  realtimeapp-cnc-v1.json: |
     {
         "cncConfig": {
             "startupfilePathFivX": "./FiveXKernelRootDir/listen/hochlauf.lis",
@@ -46,7 +46,7 @@ data:
             "CncName": "fivex"
         }
     }
-  realtimeapp-cnc-fivex-2.json: |
+  realtimeapp-cnc-v2.json: |
     {
         "cncConfig": {
             "startupfilePathFivX": "./FiveXKernelRootDir/listen/hochlauf.lis",
@@ -114,7 +114,7 @@ spec:
         volumeMounts:
         - name: config-volume
           mountPath: /app/configuration.json
-          subPath: realtimeapp-cnc-fivex-1.json
+          subPath: realtimeapp-cnc-v1.json
         resources: {}
       volumes:
       - name: config-volume

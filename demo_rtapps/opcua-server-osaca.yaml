@@ -1,0 +1,52 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: opcua-mqtt-server-conf-osaca
+  labels:
+    app: infrastructure
+    system: opcua-mqtt-server
+    environment: staging
+data:
+  configuration.json: |
+    {
+      "Hostname": "localhost",
+      "UserPassAuthentication": [],
+      "Encryption": {
+          "ServerCert": "Server_cert.der",
+          "ServerKey": "Server_key.der",
+          "TrustedClients": ["_install/etc/ssl/cert.pem"],
+          "IssuerCerts": [],
+          "Revocation": []
+      },
+      "MQTTPubSub": {
+          "Prefix": "isw",
+          "BrokerUrl": "opc.mqtt://mosquitto:1883",
+          "PublisherId": "osaca-cnc",
+          "Username": "",
+          "Password": ""
+      }
+    }
+---
+apiVersion: core.isw.de/v1alpha1
+kind: RealTimeApp
+metadata:
+  name: opcua-mqtt-osaca
+spec:
+  podspec: 
+      imagePullSecrets:
+        - name: gitlab-credentials
+      containers:
+      - name: opcua-mqtt-server
+        image: ghcr.io/umati/sample-server:pubsub-2
+        ports:
+        - containerPort: 4840
+        volumeMounts:
+        - name: config-volume
+          mountPath: /app/configuration.json
+          subPath: configuration.json
+        resources: {}
+      volumes:
+      - name: config-volume
+        configMap:
+          name: opcua-mqtt-server-conf-osaca

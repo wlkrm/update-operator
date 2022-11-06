@@ -107,6 +107,13 @@ func newServiceForRealTimeApp(rta *v1alpha1.RealTimeApp, number uint) *corev1.Se
 					Port:       80,
 					TargetPort: intstr.FromInt(80),
 					Protocol:   corev1.ProtocolTCP,
+					Name:       "http",
+				},
+				corev1.ServicePort{
+					Port:       4080,
+					TargetPort: intstr.FromInt(4080),
+					Protocol:   corev1.ProtocolTCP,
+					Name:       "ocpua",
 				},
 			},
 		},

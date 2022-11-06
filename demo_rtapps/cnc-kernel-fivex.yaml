@@ -104,7 +104,7 @@ spec:
                 fieldPath: metadata.labels['number']
           - name: PODNAME
             value: "$(APP)-$(NUMBER)"
-        name: cnc-osaka
+        name: cnc-fivex
         image: git.isw.uni-stuttgart.de:5000/projekte/forschung/2021_bmwi_sdm4fzi/isw4_konfiguration_und_deployment/cnc:latest
         imagePullPolicy: Always
         securityContext:

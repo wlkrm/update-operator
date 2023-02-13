@@ -24,13 +24,25 @@ import (
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
+// RealTimeThreadSpec is the description of a real time thread
+type RealTimeThreadSpec struct {
+	// Name is the name of the thread
+	Name        string `json:"name,omitempty"`
+	Rt_runtime  string `json:"rt_runtime,omitempty"`
+	Rt_period   string `json:"rt_period,omitempty"`
+	Rt_wcet     string `json:"rt_wcet,omitempty"`
+	Rt_deadline string `json:"rt_deadline,omitempty"`
+	Rt_type     string `json:"rt_type,omitempty"`
+}
+
+//+kubebuilder:subresource:items
+
 // RealTimeAppSpec defines the desired state of RealTimeApp
 type RealTimeAppSpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
 	// Image is the image used for the realtimeapp
-	Image   string         `json:"image,omitempty"`
-	PodSpec corev1.PodSpec `json:"podspec,omitempty"`
+	Image           string               `json:"image,omitempty"`
+	RealTimeThreads []RealTimeThreadSpec `json:"realtimethreads"`
+	PodSpec         corev1.PodSpec       `json:"podspec,omitempty"`
 }
 
 // RealTimeAppStatus defines the observed state of RealTimeApp

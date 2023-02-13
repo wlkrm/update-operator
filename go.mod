@@ -1,4 +1,4 @@
-module update-operator
+module github.com/wlkrm/update-controller
 
 go 1.18
 

@@ -36,9 +36,7 @@ spec:
             description: RealTimeAppSpec defines the desired state of RealTimeApp
             properties:
               image:
-                description: 'INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-                  Important: Run "make" to regenerate code after modifying this file
-                  Image is the image used for the realtimeapp'
+                description: Image is the image used for the realtimeapp
                 type: string
               podspec:
                 description: PodSpec is a description of a pod.
@@ -6841,6 +6839,28 @@ spec:
                 required:
                 - containers
                 type: object
+              realtimethreads:
+                items:
+                  description: RealTimeThreadSpec is the description of a real time
+                    thread
+                  properties:
+                    name:
+                      description: Name is the name of the thread
+                      type: string
+                    rt_deadline:
+                      type: string
+                    rt_period:
+                      type: string
+                    rt_runtime:
+                      type: string
+                    rt_type:
+                      type: string
+                    rt_wcet:
+                      type: string
+                  type: object
+                type: array
+            required:
+            - realtimethreads
             type: object
           status:
             description: RealTimeAppStatus defines the observed state of RealTimeApp

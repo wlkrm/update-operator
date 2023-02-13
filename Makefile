@@ -286,5 +286,29 @@ rmdemo:
 rollout_guis:
 	kubectl rollout restart deployment/infrastructure-messe-gui
 	kubectl rollout restart deployment/cnc-kernels
+	
+.PHONY: setup_debug_env
+setup_debug_env:
+	kubectl apply -f demo_local
+	kubectl apply -f demo_local_rtapps
 
+.PHONY: destroy_debug_env
+destroy_debug_env:
+	kubectl delete -f demo_local
+	kubectl delete -f demo_local_rtapps
 
+.PHONY: apply
+apply:
+	kubectl apply -f demo_local_rtapps
+
+.PHONY: rm
+rm:
+	kubectl delete -f demo_local_rtapps
+
+.PHONY: net
+net: 
+	bash networking/create_macvlan.sh
+
+.PHONY: rmnet
+rmnet: 
+	bash networking/delete_macvlan.sh

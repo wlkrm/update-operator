@@ -1,0 +1,122 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cnc-osaca-conf
+  labels:
+    app: infrastructure
+    system: cnc-osaca
+    environment: staging
+data:
+  realtimeapp-cnc-v1.json: |
+    {
+        "cncConfig": {
+            "startupfilePathFivX": "./FiveXKernelRootDir/listen/hochlauf.lis",
+            "startupfilePathOsaka": "./OsacaKernelRootDir/listen/hochlauf.lis", 
+            "startupfilePath": "./FiveXKernelRootDir/listen/hochlauf.lis", 
+            "ncProgramName": "nc_test.nc",
+            "numberOfAxes": 6,
+            "cycletime": 10000,
+            "triggerThreadPriority": 70,
+            "txOffset": 150000,
+            "simulationMode": true
+        },
+        "connectorConfig": {
+            "interface": "enp8s0",
+            "destinationMacOsacaAlt": "68:ED:A6:03:9E:30",
+            "destinationMacOsaka": "00:1B:21:EA:B8:EA",
+            "destinationMacOsaka": "00:1B:21:EA:B8:EA",
+            "destinationMac": "a6:7b:b1:78:8a:63",
+            "destinationMacFiveX": "68:ED:A6:03:9E:24",
+            "socketPriority": 6,
+            "useTSN": false,
+            "destinationIP": "10.58.103.100",
+            "destinationPort": 7777,
+            "useTCP": false
+        },
+        "mqttConfig": {
+            "Hostname": "mosquitto", 
+            "Port": 1883, 
+            "Username": "", 
+            "Password": "", 
+            "Protocol": "tcp",
+            "NcCodeTopic": "ncfile",
+            "NcStateTopic": "ncstate",
+            "RtAppStateTopic": "state",
+            "CncName": "osaca"
+        }
+    }
+  realtimeapp-cnc-v2.json: |
+    {
+        "cncConfig": {
+            "startupfilePathFivX": "./FiveXKernelRootDir/listen/hochlauf.lis",
+            "startupfilePathOsaka": "./OsacaKernelRootDir/listen/hochlauf.lis", 
+            "startupfilePath": "./FiveXKernelRootDir/listen/hochlauf.lis", 
+            "ncProgramName": "nc_test.nc",
+            "numberOfAxes": 6,
+            "cycletime": 10000,
+            "triggerThreadPriority": 70,
+            "txOffset": 150000,
+            "simulationMode": true
+        },
+        "connectorConfig": {
+            "interface": "macvlan1900isg",
+            "destinationMacOsacaAlt": "00:1B:21:EA:B8:EA",
+            "destinationMacOsaka": "68:ED:A6:03:9E:30",
+            "destinationMac": "00:1B:21:EA:B8:EA",
+            "destinationMacFiveX": "68:ED:A6:03:9E:24",
+            "socketPriority": 6,
+            "useTSN": false,
+            "destinationIP": "10.58.103.100",
+            "destinationPort": 7777,
+            "useTCP": false
+        },
+        "mqttConfig": {
+            "Hostname": "mosquitto", 
+            "Port": 1883, 
+            "Username": "", 
+            "Password": "", 
+            "Protocol": "tcp",
+            "NcCodeTopic": "ncfile",
+            "NcStateTopic": "ncstate",
+            "RtAppStateTopic": "state",
+            "CncName": "osaca"
+        }
+    }
+---
+apiVersion: core.isw.de/v1alpha1
+kind: RealTimeApp
+metadata:
+  name: realtimeapp-cnc-osaca
+spec:
+  podspec: 
+      imagePullSecrets:
+        - name: gitlab-credentials
+      containers:
+      - env:
+          - name: APP
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.labels['app']
+          - name: NUMBER
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.labels['number']
+          - name: PODNAME
+            value: "$(APP)-$(NUMBER)"
+        name: cnc-osaka
+        image: git.isw.uni-stuttgart.de:5000/projekte/forschung/2021_bmwi_sdm4fzi/isw4_konfiguration_und_deployment/cnc:latest
+        imagePullPolicy: Always
+        securityContext:
+          allowPrivilegeEscalation: true
+          runAsUser: 0
+          privileged: true
+        volumeMounts:
+        - name: config-volume
+          mountPath: /app/configuration.json
+          subPath: realtimeapp-cnc-v1.json
+        resources: {}
+      volumes:
+      - name: config-volume
+        configMap:
+          name: cnc-osaca-conf

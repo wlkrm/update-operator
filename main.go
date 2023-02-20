@@ -31,8 +31,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	corev1alpha1 "update-operator/api/v1alpha1"
-	"update-operator/controllers"
+	corev1alpha1 "github.com/wlkrm/update-operator/api/v1alpha1"
+	"github.com/wlkrm/update-operator/controllers"
 	//+kubebuilder:scaffold:imports
 )
 

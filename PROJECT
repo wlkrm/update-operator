@@ -14,6 +14,6 @@ resources:
   domain: isw.de
   group: core
   kind: RealTimeApp
-  path: update-operator/api/v1alpha1
+  path: github.com/wlkrm/update-operator/api/v1alpha1
   version: v1alpha1
 version: "3"

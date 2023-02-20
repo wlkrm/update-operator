@@ -26,8 +26,8 @@ import (
 	"strings"
 	"time"
 
-	"update-operator/api/v1alpha1"
-	corev1alpha1 "update-operator/api/v1alpha1"
+	"github.com/wlkrm/update-operator/api/v1alpha1"
+	corev1alpha1 "github.com/wlkrm/update-operator/api/v1alpha1"
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 	appv1 "k8s.io/api/apps/v1"
